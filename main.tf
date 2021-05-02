@@ -86,7 +86,7 @@ resource "aws_lb" "lab-lb-tf" {
 }
 
 resource "aws_security_group" "lab-lb-sg-tf" {
-  name   = "lb-sg-tf"
+  name   = "lab-lb-sg-tf"
   description = "Allow HTTP and HTTPS inbound traffic"
   vpc_id = var.vpc_id
 
@@ -118,6 +118,12 @@ resource "aws_security_group" "lab-lb-sg-tf" {
 }
 
 resource "aws_lb_target_group" "lab-tg-tf" {
+  name        = "lab-tg-tf"
+  port        = var.hub_port
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "instance"
+
   health_check {
     interval            = 30
     path                = "/hub/login?next=%2Fhub%2F"
@@ -133,12 +139,6 @@ resource "aws_lb_target_group" "lab-tg-tf" {
     enabled         = true
     type            = "lb_cookie"
   }
-
-  name        = "tg-tf"
-  port        = var.hub_port
-  protocol    = "HTTP"
-  vpc_id      = var.vpc_id
-  target_type = "instance"
 }
 
 resource "aws_lb_listener" "lab-lb-http-listener-tf" {
@@ -176,9 +176,18 @@ resource "aws_lb_listener" "lab-lb-https-listener-tf" {
 ##################
 
 resource "aws_launch_template" "lab-lt-tf" {
+  name                   = "lab-lt-tf"
   image_id               = var.image_id
   instance_type          = var.instance_type
   vpc_security_group_ids = [ aws_security_group.lab-instance-sg-tf.id ]
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      Name = "Lab"
+    }
+  }
 }
 
 resource "aws_security_group" "lab-instance-sg-tf" {
@@ -206,6 +215,8 @@ resource "aws_security_group" "lab-instance-sg-tf" {
 data "aws_availability_zones" "available" {}
 
 resource "aws_autoscaling_group" "lab-asg-tf" {
+  name                    = "lab-asg-tf"
+
   availability_zones      = data.aws_availability_zones.available.names
 
   target_group_arns       = [ aws_lb_target_group.lab-tg-tf.arn ]
