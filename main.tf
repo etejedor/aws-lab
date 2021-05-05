@@ -214,21 +214,134 @@ resource "aws_security_group" "lab-instance-sg-tf" {
 
 data "aws_availability_zones" "available" {}
 
-resource "aws_autoscaling_group" "lab-asg-tf" {
-  name                    = "lab-asg-tf"
+resource "aws_autoscaling_group" "lab-asgroup-tf" {
+  name               = "lab-asgroup-tf"
 
-  availability_zones      = data.aws_availability_zones.available.names
+  availability_zones = data.aws_availability_zones.available.names
 
-  target_group_arns       = [ aws_lb_target_group.lab-tg-tf.arn ]
+  target_group_arns  = [ aws_lb_target_group.lab-tg-tf.arn ]
 
-  min_size                = var.asg_min
-  max_size                = var.asg_max
-  desired_capacity        = var.asg_desired
+  min_size           = var.asg_min
+  max_size           = var.asg_max
 
-  health_check_type       = "ELB"
+  health_check_type  = "ELB"
+
+  enabled_metrics = [
+    "GroupInServiceInstances"
+  ]
 
   launch_template {
     id      = aws_launch_template.lab-lt-tf.id
     version = "$Latest"
+  }
+}
+
+resource "aws_autoscaling_policy" "lab-asp-scale-up-tf" {
+    name                   = "lab-asp-scale-up-tf"
+    scaling_adjustment     = 1
+    adjustment_type        = "ChangeInCapacity"
+    cooldown               = 180
+    autoscaling_group_name = aws_autoscaling_group.lab-asgroup-tf.name
+}
+
+resource "aws_autoscaling_policy" "lab-asp-scale-down-tf" {
+    name = "lab-asp-scale-down-tf"
+    scaling_adjustment     = -1
+    adjustment_type        = "ChangeInCapacity"
+    cooldown               = 180
+    autoscaling_group_name = aws_autoscaling_group.lab-asgroup-tf.name
+}
+
+resource "aws_cloudwatch_metric_alarm" "lab-alarm-active-sessions-high-tf" {
+  alarm_name                = "lab-alarm-active-sessions-high-tf"
+  comparison_operator       = "GreaterThanOrEqualToThreshold"
+  evaluation_periods        = 2
+  threshold                 = 2
+  alarm_description         = "High number of average active user sessions per lab instance"
+  alarm_actions             = [ aws_autoscaling_policy.lab-asp-scale-up-tf.arn ]
+  insufficient_data_actions = []
+
+  metric_query {
+    id          = "e1high"
+    expression  = "(m2high/2)/m1high"
+    label       = "Average sessions"
+    return_data = "true"
+  }
+
+  metric_query {
+    id = "m1high"
+
+    metric {
+      metric_name = "GroupInServiceInstances"
+      namespace   = "AWS/AutoScaling"
+      period      = "60"
+      stat        = "Average"
+
+      dimensions = {
+        AutoScalingGroupName = aws_autoscaling_group.lab-asgroup-tf.name
+      }
+    }
+  }
+
+  metric_query {
+    id = "m2high"
+
+    metric {
+      metric_name = "ActiveConnectionCount"
+      namespace   = "AWS/ApplicationELB"
+      period      = "60"
+      stat        = "Average"
+
+      dimensions = {
+        LoadBalancer = aws_lb.lab-lb-tf.arn_suffix
+      }
+    }
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "lab-alarm-active-sessions-low-tf" {
+  alarm_name                = "lab-alarm-active-sessions-low-tf"
+  comparison_operator       = "LessThanThreshold"
+  evaluation_periods        = 2
+  threshold                 = 1
+  alarm_description         = "Low number of average active user sessions per lab instance"
+  alarm_actions             = [ aws_autoscaling_policy.lab-asp-scale-down-tf.arn ]
+  insufficient_data_actions = []
+
+  metric_query {
+    id          = "e1low"
+    expression  = "(m2low/2)/m1low"
+    label       = "Average sessions"
+    return_data = "true"
+  }
+
+  metric_query {
+    id = "m1low"
+
+    metric {
+      metric_name = "GroupInServiceInstances"
+      namespace   = "AWS/AutoScaling"
+      period      = "60"
+      stat        = "Average"
+
+      dimensions = {
+        AutoScalingGroupName = aws_autoscaling_group.lab-asgroup-tf.name
+      }
+    }
+  }
+
+  metric_query {
+    id = "m2low"
+
+    metric {
+      metric_name = "ActiveConnectionCount"
+      namespace   = "AWS/ApplicationELB"
+      period      = "60"
+      stat        = "Average"
+
+      dimensions = {
+        LoadBalancer = aws_lb.lab-lb-tf.arn_suffix
+      }
+    }
   }
 }
