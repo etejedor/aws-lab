@@ -14,6 +14,6 @@ The following diagram depicts the architecture of the AWS Lab.
 
 ![AWS Lab architecture](./images/aws-lab.png)
 
-Once a user has started their session in the AWS Lab, the JupyterLab interface appears as shown in the figure below.
+Once a user has started their session in the AWS Lab, the JupyterLab environment - including the Jupyter notebook interface - appears as shown in the figure below.
 
 ![JupyterLab user interface](./images/jupyterlab.png)
